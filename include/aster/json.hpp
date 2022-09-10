@@ -18,11 +18,6 @@ namespace std
 
 namespace aster
 {
-    class IndexOutOfBoundsException : std::exception
-    {
-
-    };
-
     class JSONException : std::exception
     {
         std::string message;
@@ -358,7 +353,7 @@ namespace aster
             return type == Type::OBJECT;
         }
 
-        bool empty()
+        bool is_empty()
         {
             switch (type)
             {
@@ -435,12 +430,11 @@ namespace aster
                     out.push_back(']');
                 }
                 break;
-
                 case Type::OBJECT:
                 {
                     auto& object = ref<Object>();
                     out.push_back('{');
-                    if (!empty())
+                    if (!is_empty())
                     {
                         if constexpr (indent > 0)
                         {
@@ -484,15 +478,10 @@ namespace aster
                     out.push_back('}');
                 }
                 break;
-
                 case Type::NULL: out.append("null"); break;
-
                 case Type::BOOLEAN: out.append(std::bool_string(ref<Boolean>())); break;
-
                 case Type::SIGNED: out.append(std::to_string(ref<Signed>())); break;
-
                 case Type::DOUBLE: out.append(std::to_string(ref<Double>())); break;
-
                 case Type::STRING: 
                 {
                     out.push_back('"');
@@ -500,7 +489,6 @@ namespace aster
                     out.push_back('"');
                 }
                 break;
-
                 default: throw JSONException("unknown serialization type");
             }
         }
