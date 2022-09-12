@@ -1,192 +1,247 @@
 #pragma once
 
-#include <cstddef>
-#include <typeinfo>
-#include <string>
-#include <vector>
-#include <map>
+#include <aster/types.hpp>
 
 #undef NULL
 
-namespace std
-{
-    constexpr std::string bool_string(bool boolean)
-    {
-        return boolean ? "true" : "false";
-    }
-}
+
 
 namespace aster
 {
-    class JSONException : std::exception
+    /**
+     *
+     * @param boolean
+     * @return
+     */
+    inline constexpr String bool_string(Boolean boolean)
     {
-        std::string message;
+        return boolean ? "true" : "false";
+    }
 
+
+
+    /**
+     *
+     */
+    class JSONException : Exception
+    {
     public:
         JSONException() = default;
 
-        JSONException(const std::string& message)
+        explicit JSONException(const String& message)
         {
-            this->message = message;
-
 #ifdef _GLIBCXX_IOSTREAM
             std::cerr << "JSONException: " << message << std::endl;
 #endif
         }
-
-        const char* what() const noexcept override
-        {
-            return ("JSONException: " + message).c_str();
-        }
     };
 
+
+
+    /**
+     *
+     */
+    enum class JSONType : UByte
+    {
+        NULL,
+        BOOLEAN,
+        LONG,
+        DOUBLE,
+        STRING,
+        ARRAY,
+        OBJECT,
+    };
+
+
+
+    /**
+     *
+     */
     class JSON
     {
+        typedef Vector<JSON> Array;
+        typedef Map<String, JSON> Object;
+
+        JSONType type = JSONType::NULL;
         void* data;
 
-        enum class Type : uint8_t
-        {
-            NULL,
-            BOOLEAN,
-            SIGNED,
-            DOUBLE,
-            STRING,
-            ARRAY,
-            OBJECT,
-        };
 
-        constexpr void init(Type type)
-        {
-            this->type = type;
-            switch (type)
-            {
-                case Type::BOOLEAN: data = new Boolean; break;
-                case Type::SIGNED: data = new Signed; break;
-                case Type::DOUBLE: data = new Double; break;
-                case Type::STRING: data = new String; break;
-                case Type::ARRAY: data = new Array; break;
-                case Type::OBJECT: data = new Object; break;
-            }
-        }
 
+        /**
+         *
+         * @tparam T
+         * @param t
+         * @return
+         */
         template <typename T>
         constexpr void init(const T& t)
         {
             if constexpr (std::is_null_pointer<T>::value)
             {
-                type = Type::NULL;
+                type = JSONType::NULL;
             }
-            else if constexpr (std::is_array<T>::value)
+            else if constexpr (std::is_array<T>::value || std::is_same<T, String>::value)
             {
-                type = Type::STRING;
+                type = JSONType::STRING;
                 data = new String(t);
             }
             else if constexpr (std::is_same<T, bool>::value)
             {
-                type = Type::BOOLEAN;
+                type = JSONType::BOOLEAN;
                 data = new Boolean(t);
             }
             else if constexpr (std::is_floating_point<T>::value)
             {
-                type = Type::DOUBLE;
+                type = JSONType::DOUBLE;
                 data = new Double(t);
             }
-            else if constexpr (std::is_integral<T>::value)
+            else if constexpr (std::is_signed<T>::value)
             {
-                type = Type::SIGNED;
-                data = new Signed(t);
+                type = JSONType::LONG;
+                data = new Long(t);
+            }
+            else if constexpr (std::is_same<T, JSONType>::value)
+            {
+                type = t;
+                switch (t)
+                {
+                    case JSONType::BOOLEAN: data = new Boolean; break;
+                    case JSONType::LONG: data = new Long; break;
+                    case JSONType::DOUBLE: data = new Double; break;
+                    case JSONType::STRING: data = new String; break;
+                    case JSONType::ARRAY: data = new Array; break;
+                    case JSONType::OBJECT: data = new Object; break;
+                    default: break;
+                }
             }
         }
 
+
+
+        /**
+         * @brief free [JSON] data
+         * @return
+         */
         constexpr void free()
         {
             switch (type)
             {
-                case Type::BOOLEAN: delete ptr<Boolean>(); break;
-                case Type::SIGNED: delete ptr<Signed>(); break;
-                case Type::DOUBLE: delete ptr<Double>(); break;
-                case Type::STRING: delete ptr<String>(); break;
-                case Type::ARRAY: delete ptr<Array>(); break;
-                case Type::OBJECT: delete ptr<Object>(); break;
+                case JSONType::BOOLEAN: delete ptr<Boolean>(); break;
+                case JSONType::LONG: delete ptr<Long>(); break;
+                case JSONType::DOUBLE: delete ptr<Double>(); break;
+                case JSONType::STRING: delete ptr<String>(); break;
+                case JSONType::ARRAY: delete ptr<Array>(); break;
+                case JSONType::OBJECT: delete ptr<Object>(); break;
+                default: break;
             }
-            type = Type::NULL;
+            type = JSONType::NULL;
         }
 
-    public:
-        typedef std::nullptr_t Null;
-        typedef bool Boolean;
-        typedef int64_t Signed;
-        typedef double Double;
-        typedef std::string String;
-        typedef std::vector<JSON> Array;
-        typedef std::map<std::string, JSON> Object;
 
-        Type type = Type::NULL;
 
-        template <typename T>
-        constexpr T get()
+        /**
+         * @brief clone contents of [JSON]
+         * @return [void*] of cloned value
+         */
+        constexpr void* clone()
         {
-            return *static_cast<T*>(data);
+            switch (type)
+            {
+                case JSONType::OBJECT: return new Object(ref<Object>());
+                case JSONType::ARRAY: return new Array(ref<Array>());
+                case JSONType::STRING: return new String(ref<String>());
+                case JSONType::LONG: return new Long(ref<Long>());
+                case JSONType::DOUBLE: return new Double(ref<Double>());
+                case JSONType::BOOLEAN: return new Boolean(ref<Boolean>());
+                default: return nullptr;
+            }
         }
 
+
+
+        /**
+         *
+         * @tparam T
+         * @return
+         */
         template <typename T>
         constexpr T* ptr()
         {
             return static_cast<T*>(data);
         }
 
+
+    public:
+
+
+
+        /**
+         *
+         * @tparam T
+         * @return
+         */
+        template <typename T>
+        constexpr T get()
+        {
+            return *static_cast<T*>(data);
+        }
+
+
+
+        /**
+         *
+         * @tparam T
+         * @return
+         */
         template <typename T>
         constexpr T& ref()
         {
             return *static_cast<T*>(data);
         }
 
-        constexpr JSON() = default;
 
-        constexpr void push_back(const char* string)
+
+        /**
+         *
+         * @param json
+         * @return
+         */
+        constexpr void pushBack(const JSON& json)
         {
             switch (type)
             {
-                case Type::NULL: init(Type::ARRAY);
-                case Type::ARRAY: ref<Array>().push_back(JSON(string)); return;
+                case JSONType::NULL: init(JSONType::ARRAY);
+                case JSONType::ARRAY: ref<Array>().emplace_back(json); return;
                 default: throw JSONException();
             }
         }
 
-        template <typename T>
-        constexpr void push_back(const T& t)
+
+
+        /**
+         *
+         * @param json
+         * @return
+         */
+        constexpr void pushBack(JSON&& json)
         {
             switch (type)
             {
-                case Type::NULL: init(Type::ARRAY);
-                case Type::ARRAY: ref<Array>().push_back(JSON(t)); return;
+                case JSONType::NULL: init(JSONType::ARRAY);
+                case JSONType::ARRAY: ref<Array>().emplace_back(std::forward<JSON>(json)); return;
                 default: throw JSONException();
             }
         }
 
-        constexpr void push_back(JSON& json)
-        {
-            switch (type)
-            {
-                case Type::NULL: init(Type::ARRAY);
-                case Type::ARRAY: ref<Array>().push_back(JSON(json)); return;
-                default: throw JSONException();
-            }
-        }
 
-        constexpr void push_back(JSON&& json)
+
+        /**
+         * @param index
+         * @return
+         */
+        constexpr JSON& operator[](Size index)
         {
-            switch (type)
-            {
-                case Type::NULL: init(Type::ARRAY);
-                case Type::ARRAY: ref<Array>().push_back(JSON(std::forward<JSON>(json))); return;
-                default: throw JSONException();
-            }
-        }
-    
-        constexpr JSON& operator[](size_t index)
-        {
-            if (type == Type::ARRAY)
+            if (type == JSONType::ARRAY)
             {
                 return ref<Array>()[index];
             }
@@ -196,12 +251,18 @@ namespace aster
             }
         }
 
-        constexpr JSON& operator[](const std::string& key)
+
+
+        /**
+         * @param key
+         * @return
+         */
+        constexpr JSON& operator[](const String& key)
         {
             switch (type)
             {
-                case Type::NULL: init(Type::OBJECT);
-                case Type::OBJECT:
+                case JSONType::NULL: init(JSONType::OBJECT);
+                case JSONType::OBJECT:
                 {
                     auto& object = ref<Object>();
                     if (object.contains(key))
@@ -217,76 +278,76 @@ namespace aster
             }
         }
 
-        constexpr void* clone()
-        {
-            switch (type)
-            {
-                case Type::OBJECT: return new Object(ref<Object>()); break;
-                case Type::ARRAY: return new Array(ref<Array>()); break;
-                case Type::STRING: return new String(ref<String>());
-                case Type::SIGNED: return new Signed(ref<Signed>());
-                case Type::DOUBLE: return new Double(ref<Double>());
-                case Type::BOOLEAN: return new Boolean(ref<Boolean>());
-            }
-            return nullptr;
-        }
 
+
+        /**
+         * @brief [JSON] default cctor
+         */
+        constexpr JSON() = default;
+
+
+
+        /**
+         * @brief [JSON] copy cctor
+         * @param json [JSON] to copy
+         */
         constexpr JSON(const JSON& json)
         {
             type = json.type;
             data = const_cast<JSON&>(json).clone();
         }
 
-        constexpr JSON(JSON& json)
+
+
+        /**
+         * @brief [JSON] move cctor
+         * @param json [JSON] to move
+         */
+        constexpr JSON(JSON&& json) noexcept
         {
             type = json.type;
             data = json.clone();
         }
 
-        constexpr JSON(JSON&& json)
-        {
-            type = json.type;
-            data = json.clone();
-        }
 
-        constexpr JSON(Array&& array)
-        {
-            type = Type::ARRAY;
-            data = new Array(std::forward<Array>(array));
-        }
 
-        JSON(const std::initializer_list<std::pair<std::string, JSON>>& object)
-        {
-            type = Type::OBJECT;
-            data = new Object();
-            for (auto& pair : object)
-            {
-                operator[](pair.first) = (JSON&)(pair.second);
-            }
-        }
-
+        /**
+         *
+         * @tparam T
+         * @param t
+         */
         template <typename T>
         constexpr JSON(const T& t)
         {
             init(t);
         }
 
-        constexpr JSON& operator=(Type type)
+
+
+        /**
+         *
+         * @param json
+         * @return
+         */
+        constexpr JSON& operator=(const JSON& json)
         {
-            free();
-            init(type);
+            if (this != &json)
+            {
+                free();
+                type = json.type;
+                data = const_cast<JSON&>(json).clone();
+            }
             return *this;
         }
 
-        constexpr JSON& operator=(JSON* json)
-        {
-            free();
-            type = json->type;
-            data = json->data;
-            return *this;
-        }
 
-        constexpr JSON& operator=(JSON& json)
+
+        /**
+         *
+         * @param json
+         * @return
+         */
+        constexpr JSON& operator=(JSON&& json) noexcept
         {
             free();
             type = json.type;
@@ -294,22 +355,14 @@ namespace aster
             return *this;
         }
 
-        constexpr JSON& operator=(JSON&& json)
-        {
-            free();
-            type = json.type;
-            data = json.clone();
-            return *this;
-        }
 
-        constexpr JSON& operator=(const char* string)
-        {
-            free();
-            type = Type::STRING;
-            data = new String(string);
-            return *this;
-        }
 
+        /**
+         *
+         * @tparam T
+         * @param t
+         * @return
+         */
         template <typename T>
         constexpr JSON& operator=(const T& t)
         {
@@ -318,92 +371,173 @@ namespace aster
             return *this;
         }
 
-        constexpr bool is_string()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isString() const
         {
-            return type == Type::STRING;
+            return type == JSONType::STRING;
         }
 
-        constexpr bool is_double()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isDouble() const
         {
-            return type == Type::DOUBLE;
+            return type == JSONType::DOUBLE;
         }
 
-        constexpr bool is_integer()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isInteger() const
         {
-            return type == Type::SIGNED;
+            return type == JSONType::LONG;
         }
 
-        constexpr bool is_number()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isSigned() const
         {
-            return type == Type::SIGNED || type == Type::DOUBLE;
+            return type == JSONType::LONG;
         }
 
-        constexpr bool is_null()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isNumber() const
         {
-            return type == Type::NULL;
+            return type == JSONType::LONG || type == JSONType::DOUBLE;
         }
 
-        constexpr bool is_array()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isNull() const
         {
-            return type == Type::ARRAY;
-        }
-        
-        constexpr bool is_object()
-        {
-            return type == Type::OBJECT;
+            return type == JSONType::NULL;
         }
 
-        bool is_empty()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isArray() const
+        {
+            return type == JSONType::ARRAY;
+        }
+
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isObject() const
+        {
+            return type == JSONType::OBJECT;
+        }
+
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr bool isEmpty()
         {
             switch (type)
             {
-                case Type::NULL: return true;
-                case Type::STRING: return ref<String>().empty();
-                case Type::ARRAY: return ref<Array>().empty();
-                case Type::OBJECT: return ref<Object>().empty();
+                case JSONType::NULL: return true;
+                case JSONType::STRING: return ref<String>().empty();
+                case JSONType::ARRAY: return ref<Array>().empty();
+                case JSONType::OBJECT: return ref<Object>().empty();
                 default: return false;
             }
         }
 
-        constexpr operator std::string()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr operator String()
         {
             switch (type)
             {
-                case Type::NULL: init(Type::STRING);
-                case Type::STRING: return ref<String>();
+                case JSONType::NULL: init(JSONType::STRING);
+                case JSONType::STRING: return ref<String>();
                 default: throw JSONException();
             }
         }
 
-        constexpr operator std::string&()
+
+
+        /**
+         *
+         * @return
+         */
+        constexpr operator String&()
         {
             switch (type)
             {
-                case Type::NULL: init(Type::STRING);
-                case Type::STRING: return ref<String>();
+                case JSONType::NULL: init(JSONType::STRING);
+                case JSONType::STRING: return ref<String>();
                 default: throw JSONException();
             }
         }
 
-        template <size_t indent = 0>
-        constexpr void serialize(std::string& out, size_t depth = 0)
+
+
+    private:
+        /**
+         *
+         * @tparam indent
+         * @param out
+         * @param depth
+         * @return
+         */
+        template <Size indent = 0>
+        constexpr void serialize(String& out, Size depth = 0)
         {
             switch (type)
             {
-                case Type::ARRAY:
+                case JSONType::ARRAY:
                 {
                     auto& array = ref<Array>();
                     out.push_back('[');
-                    if (array.size() > 0)
+                    if (!array.empty())
                     {
                         if constexpr (indent > 0)
                         {
                             depth++;
                             out.push_back('\n');
-                            out.append(std::string(depth * indent, ' '));
+                            out.append(String(depth * indent, ' '));
                         }
                         bool comma = false;
-                        for (uint64_t i = 0; i < array.size(); i++)
+                        for (auto& item : array)
                         {
                             if (comma)
                             {
@@ -411,36 +545,36 @@ namespace aster
                                 if constexpr (indent > 0)
                                 {
                                     out.push_back('\n');
-                                    out.append(std::string(depth * indent, ' '));
+                                    out.append(String(depth * indent, ' '));
                                 }
                             }
                             else 
                             {
                                 comma = true;
                             }
-                            array[i].serialize<indent>(out, depth);
+                            item.serialize<indent>(out, depth);
                         }
                         if constexpr (indent > 0)
                         {
                             out.push_back('\n');
                             depth--;
-                            out.append(std::string(depth * indent, ' '));
+                            out.append(String(depth * indent, ' '));
                         }
                     }
                     out.push_back(']');
                 }
                 break;
-                case Type::OBJECT:
+                case JSONType::OBJECT:
                 {
                     auto& object = ref<Object>();
                     out.push_back('{');
-                    if (!is_empty())
+                    if (!isEmpty())
                     {
                         if constexpr (indent > 0)
                         {
                             depth++;
                             out.push_back('\n');
-                            out.append(std::string(depth * indent, ' '));
+                            out.append(String(depth * indent, ' '));
                         }
                         bool comma = false;
                         for (auto& entry : object)
@@ -451,7 +585,7 @@ namespace aster
                                 if constexpr (indent > 0)
                                 {
                                     out.push_back('\n');
-                                    out.append(std::string(depth * indent, ' '));
+                                    out.append(String(depth * indent, ' '));
                                 }
                             }
                             else 
@@ -472,17 +606,17 @@ namespace aster
                         {
                             out.push_back('\n');
                             depth--;
-                            out.append(std::string(depth * indent, ' '));
+                            out.append(String(depth * indent, ' '));
                         }
                     }
                     out.push_back('}');
                 }
                 break;
-                case Type::NULL: out.append("null"); break;
-                case Type::BOOLEAN: out.append(std::bool_string(ref<Boolean>())); break;
-                case Type::SIGNED: out.append(std::to_string(ref<Signed>())); break;
-                case Type::DOUBLE: out.append(std::to_string(ref<Double>())); break;
-                case Type::STRING: 
+                case JSONType::NULL: out.append("null"); break;
+                case JSONType::BOOLEAN: out.append(bool_string(ref<Boolean>())); break;
+                case JSONType::LONG: out.append(std::to_string(ref<Long>())); break;
+                case JSONType::DOUBLE: out.append(std::to_string(ref<Double>())); break;
+                case JSONType::STRING:
                 {
                     out.push_back('"');
                     out.append(ref<String>());
@@ -493,14 +627,27 @@ namespace aster
             }
         }
 
-        template <size_t indent = 0>
-        constexpr std::string dump()
+
+
+    public:
+        /**
+         *
+         * @tparam indent
+         * @return
+         */
+        template <Size indent = 0>
+        constexpr String dump()
         {
-            std::string out;
+            String out;
             serialize<indent>(out);
             return out;
         }
 
+
+
+        /**
+         *
+         */
         constexpr ~JSON()
         {
             free();
