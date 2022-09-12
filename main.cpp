@@ -17,7 +17,7 @@ int main()
     json["array"].pushBack(3);
     json["object"]["key"] = "value";
 
-    auto& a = json["string"].ref<std::string>();
+    String& a = json["string"];
 
     std::cout << json.dump<2>() << "\n";
 }

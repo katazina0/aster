@@ -519,7 +519,7 @@ namespace aster
          * @param depth
          * @return
          */
-        template <Size indent = 0>
+        template <Size indent = 0, Size dep = 0>
         constexpr void serialize(String& out, Size depth = 0)
         {
             switch (type)
@@ -527,39 +527,41 @@ namespace aster
                 case JSONType::ARRAY:
                 {
                     auto& array = ref<Array>();
-                    out.push_back('[');
-                    if (!array.empty())
+                    if (array.empty())
                     {
-                        if constexpr (indent > 0)
+                        out.append("[]");
+                        return;
+                    }
+                    out.push_back('[');
+                    if constexpr (indent > 0)
+                    {
+                        depth++;
+                        out.push_back('\n');
+                        out.append(String(depth * indent, ' '));
+                    }
+                    bool comma = false;
+                    for (Size i = 0; i < array.size(); i++)
+                    {
+                        if (comma)
                         {
-                            depth++;
-                            out.push_back('\n');
-                            out.append(String(depth * indent, ' '));
-                        }
-                        bool comma = false;
-                        for (auto& item : array)
-                        {
-                            if (comma)
+                            out.push_back(',');
+                            if constexpr (indent > 0)
                             {
-                                out.push_back(',');
-                                if constexpr (indent > 0)
-                                {
-                                    out.push_back('\n');
-                                    out.append(String(depth * indent, ' '));
-                                }
+                                out.push_back('\n');
+                                out.append(String(depth * indent, ' '));
                             }
-                            else 
-                            {
-                                comma = true;
-                            }
-                            item.serialize<indent>(out, depth);
                         }
-                        if constexpr (indent > 0)
+                        else
                         {
-                            out.push_back('\n');
-                            depth--;
-                            out.append(String(depth * indent, ' '));
+                            comma = true;
                         }
+                        array[i].serialize<indent>(out, depth);
+                    }
+                    if constexpr (indent > 0)
+                    {
+                        out.push_back('\n');
+                        depth--;
+                        out.append(String(depth * indent, ' '));
                     }
                     out.push_back(']');
                 }
@@ -567,47 +569,49 @@ namespace aster
                 case JSONType::OBJECT:
                 {
                     auto& object = ref<Object>();
-                    out.push_back('{');
-                    if (!isEmpty())
+                    if (object.empty())
                     {
-                        if constexpr (indent > 0)
+                        out.append("{}");
+                        return;
+                    }
+                    out.push_back('{');
+                    if constexpr (indent > 0)
+                    {
+                        depth++;
+                        out.push_back('\n');
+                        out.append(String(depth * indent, ' '));
+                    }
+                    bool comma = false;
+                    for (auto& entry : object)
+                    {
+                        if (comma)
                         {
-                            depth++;
-                            out.push_back('\n');
-                            out.append(String(depth * indent, ' '));
-                        }
-                        bool comma = false;
-                        for (auto& entry : object)
-                        {
-                            if (comma)
-                            {
-                                out.push_back(',');
-                                if constexpr (indent > 0)
-                                {
-                                    out.push_back('\n');
-                                    out.append(String(depth * indent, ' '));
-                                }
-                            }
-                            else 
-                            {
-                                comma = true;
-                            }
-                            out.push_back('"');
-                            out.append(entry.first);
-                            out.push_back('"');
-                            out.push_back(':');
+                            out.push_back(',');
                             if constexpr (indent > 0)
                             {
-                                out.push_back(' ');
+                                out.push_back('\n');
+                                out.append(String(depth * indent, ' '));
                             }
-                            entry.second.serialize<indent>(out, depth);
                         }
+                        else
+                        {
+                            comma = true;
+                        }
+                        out.push_back('"');
+                        out.append(entry.first);
+                        out.push_back('"');
+                        out.push_back(':');
                         if constexpr (indent > 0)
                         {
-                            out.push_back('\n');
-                            depth--;
-                            out.append(String(depth * indent, ' '));
+                            out.push_back(' ');
                         }
+                        entry.second.serialize<indent>(out, depth);
+                    }
+                    if constexpr (indent > 0)
+                    {
+                        out.push_back('\n');
+                        depth--;
+                        out.append(String(depth * indent, ' '));
                     }
                     out.push_back('}');
                 }
