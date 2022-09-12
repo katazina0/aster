@@ -1,4 +1,1 @@
-.cmake/
-.vscode/
 include/aster/perf/json.hpp
-out/
